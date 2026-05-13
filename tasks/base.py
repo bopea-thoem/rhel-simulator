@@ -1,0 +1,116 @@
+"""
+Base task class for all RHCSA EX200 v10 exam tasks.
+"""
+
+from abc import ABC, abstractmethod
+from dataclasses import dataclass
+from typing import List, Optional
+import logging
+
+from config import settings
+
+
+logger = logging.getLogger(__name__)
+
+
+class BaseTask(ABC):
+    """
+    Abstract base class for all RHCSA exam tasks.
+
+    All task categories must inherit from this class and implement
+    the generate() and validate() methods.
+    """
+
+    def __init__(self, id, category, difficulty, points):
+        self.id = id
+        self.category = category
+        self.difficulty = difficulty
+        self.points = points
+        self.description = ""
+        self.hints = []
+        self.params = {}
+
+        # v4.0.0 additions
+        self.exam_domain = settings.CATEGORY_TO_DOMAIN.get(category, 0)
+        self.requires_persistence = False
+        self.persistence_checks = []
+        self.exam_tips = []
+        self.prerequisites = []
+        self.tags = []
+
+    @abstractmethod
+    def generate(self, **params):
+        """Generate task with randomized parameters. Returns self."""
+        pass
+
+    @abstractmethod
+    def validate(self):
+        """Validate task completion. Returns ValidationResult."""
+        pass
+
+    def validate_persistence(self):
+        """
+        Validate that task results survive a reboot.
+        Called by the reboot engine for tasks with requires_persistence=True.
+        Default: falls through to validate().
+        """
+        return self.validate()
+
+    def get_description(self):
+        return self.description
+
+    def get_hints(self):
+        return self.hints
+
+    def get_category_display_name(self):
+        from utils.formatters import format_category_name
+        return format_category_name(self.category)
+
+    def get_difficulty_display(self):
+        from utils.formatters import format_difficulty
+        return format_difficulty(self.difficulty)
+
+    def get_domain_display(self):
+        return settings.EXAM_DOMAINS.get(self.exam_domain, "Unknown")
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'category': self.category,
+            'difficulty': self.difficulty,
+            'points': self.points,
+            'description': self.description,
+            'hints': self.hints,
+            'exam_domain': self.exam_domain,
+            'requires_persistence': self.requires_persistence,
+            'tags': self.tags,
+            'exam_tips': self.exam_tips,
+        }
+
+    def __repr__(self):
+        return f"<Task {self.id}: {self.category} ({self.difficulty}, {self.points}pts, D{self.exam_domain})>"
+
+
+class SimpleTask(BaseTask):
+    """Non-abstract implementation for quick task creation."""
+
+    def __init__(self, id, category, difficulty, points, description="", validation_func=None):
+        super().__init__(id, category, difficulty, points)
+        self.description = description
+        self._validation_func = validation_func
+
+    def generate(self, **params):
+        return self
+
+    def validate(self):
+        if self._validation_func:
+            return self._validation_func()
+
+        from core.validator import ValidationResult
+        return ValidationResult(
+            task_id=self.id,
+            passed=False,
+            score=0,
+            max_score=self.points,
+            error_message="No validation function provided"
+        )
