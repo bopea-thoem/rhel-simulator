@@ -12,6 +12,7 @@ import logging
 import sys
 from tasks.registry import TaskRegistry
 from core.validator import get_validator
+from validators.safe_executor import execute_safe
 from core.results_db import get_results_db
 from utils import formatters as fmt
 from utils.helpers import confirm_action
@@ -161,6 +162,56 @@ class PracticeSession:
                     break
                 lines.append(line)
             user_command = '\n'.join(lines).strip()
+
+            # If user provided multiple lines, allow executing them one-by-one
+            commands = [ln for ln in (l.strip() for l in lines) if ln]
+            if commands:
+                print()
+                print(fmt.bold("Execute entered commands"))
+                print("You can press Enter to execute the next command, 's' to skip, 'e' to edit, or 'v' to validate now.")
+                for idx, cmd in enumerate(commands, 1):
+                    prompt = f"[{idx}/{len(commands)}] {cmd} -- Execute? (Enter/s/e/v): "
+                    choice = input(prompt).strip().lower()
+                    if choice == 's':
+                        print(fmt.info("Skipped."))
+                        continue
+                    if choice == 'e':
+                        new_cmd = input("Edit command: ").strip()
+                        if new_cmd:
+                            cmd = new_cmd
+                        else:
+                            print(fmt.error("Empty command, skipping."))
+                            continue
+                    if choice == 'v':
+                        print(fmt.info("Validation requested, skipping remaining commands."))
+                        break
+
+                    # Execute command safely and show output
+                    print(fmt.info(f"Running: {cmd}"))
+                    result = execute_safe(cmd)
+                    if result.stdout:
+                        print(result.stdout)
+                    if result.stderr:
+                        print(fmt.error(result.stderr))
+                    print(fmt.info(f"Exit code: {result.returncode}"))
+
+                # After execution loop, ask whether to validate now
+                while True:
+                    post = input("Validate? [Y/n]: ").strip().lower()
+                    if post == '' or post in ('y', 'yes'):
+                        # proceed to validation
+                        validate_now = True
+                        break
+                    elif post in ('n', 'no'):
+                        # go back to task display / previous menu
+                        validate_now = False
+                        break
+                    else:
+                        print(fmt.error("Please answer Y or N"))
+
+                if not validate_now:
+                    # return to top of task loop (re-display task without validating)
+                    continue
 
             # Validate
             validator = get_validator()
