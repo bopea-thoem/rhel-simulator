@@ -9,6 +9,7 @@ Features:
 """
 
 import logging
+import sys
 from tasks.registry import TaskRegistry
 from core.validator import get_validator
 from core.results_db import get_results_db
@@ -146,9 +147,20 @@ class PracticeSession:
                     print(f"  {i}. {hint}")
                 print()
 
-            print("Complete this task on your system, then type your command below and press Enter to validate.")
-            print("Please enter the command you used to complete the task: ", end='', flush=True)
-            user_command = input()
+            print("Complete this task on your system, then enter the command(s) you used below.")
+            print("Finish input with a single '.' on its own line or an empty line.")
+            sys.stdout.write("Enter command(s), finish with '.' or blank line:\n")
+            sys.stdout.flush()
+            lines = []
+            while True:
+                line = sys.stdin.readline()
+                if not line:
+                    break
+                line = line.rstrip('\n')
+                if line == '.' or line == '':
+                    break
+                lines.append(line)
+            user_command = '\n'.join(lines).strip()
 
             # Validate
             validator = get_validator()
