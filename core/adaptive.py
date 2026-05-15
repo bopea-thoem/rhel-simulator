@@ -174,7 +174,7 @@ class AdaptiveMode:
             print()
 
         print("Complete this task on your system, then type your command below and press Enter to validate.")
-        user_command = input(">> ")
+        user_command = input("Please enter the command you used to complete the task: ")
 
         # Validate
         validator = get_validator()
